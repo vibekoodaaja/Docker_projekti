@@ -1,0 +1,86 @@
+name: komentokirja
+
+services:
+  gateway:
+    build: ./gateway
+    image: komentokirja/gateway:${APP_VERSION:-1.0}
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    depends_on:
+      web:
+        condition: service_healthy
+      notes-api:
+        condition: service_healthy
+    networks:
+      - edge
+
+  web:
+    build: ./web
+    image: komentokirja/web:${APP_VERSION:-1.0}
+    restart: unless-stopped
+    networks:
+      - edge
+
+  notes-api:
+    build: ./notes-api
+    image: komentokirja/notes-api:${APP_VERSION:-1.0}
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-notes}
+      DB_USER: ${POSTGRES_USER:-notes}
+      DB_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - edge
+      - backend
+
+  db:
+    build: ./db
+    image: komentokirja/db:${APP_VERSION:-1.0}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-notes}
+      POSTGRES_USER: ${POSTGRES_USER:-notes}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  # käynnistyy vain: docker compose --profile tools up -d
+  adminer:
+    image: adminer:4
+    profiles: ["tools"]
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+      - tools
+
+networks:
+  edge:
+  backend:
+    internal: true # db ei näy ulos
+  tools: # adminerin portti ei toimi internal verkossa
+
+volumes:
+  pgdata:
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt

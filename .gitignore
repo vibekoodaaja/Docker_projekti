@@ -1,0 +1,6 @@
+.env
+secrets/*
+!secrets/.gitkeep
+web/dist/
+__pycache__/
+*.pyc
